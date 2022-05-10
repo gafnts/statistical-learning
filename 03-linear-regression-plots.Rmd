@@ -3,14 +3,14 @@
 Source: <https://rpubs.com/pjozefek/576206>
 
 ```{r}
-pacman::p_load(tidyverse, magrittr, here, janitor, plot3D)
+pacman::p_load(tidyverse, magrittr, here, janitor, plot3D, rayshader)
 ```
 
 ```{r}
 data <- read_csv(here("datasets", "advertising.csv")) %>% clean_names()
 ```
 
-## 3D plot of the regression plane
+## Plot3D for regression plane
 
 ```{r}
 # set the x, y, and z variables
@@ -58,4 +58,28 @@ scatter3D(x, y, z,
                                      n = 300, alpha = 0.9), 
                       border = "black"), 
           main = "Advertising")
+```
+
+## A bit of a digression: Rayshader
+
+```{r}
+ggdiamonds <- 
+  ggplot(diamonds) +
+  stat_density_2d(aes(x = x, y = depth, fill = stat(nlevel)), 
+                  geom = "polygon", n = 200, bins = 50,contour = TRUE) +
+  facet_wrap(clarity~.) +
+  scale_fill_viridis_c(option = "A")
+
+plot_gg(ggdiamonds, 
+        width = 10, 
+        height = 10, 
+        multicore = TRUE, 
+        scale = 500, 
+        zoom = 0.7, 
+        theta = 10, 
+        phi = 30, 
+        windowsize = c(800, 800))
+
+Sys.sleep(0.2)
+render_snapshot(clear = TRUE)
 ```
