@@ -9,33 +9,21 @@ set.seed(1234)
 
 This lab will be our first experience with classification models. These models differ from the regression model we saw in the last chapter by the fact that the response variable is a qualitative variable instead of a continuous variable. This chapter will use [parsnip](https://www.tidymodels.org/start/models/) for model fitting and [recipes and workflows](https://www.tidymodels.org/start/recipes/) to perform the transformations.
 
-## The Stock Market Data
-
 We load the tidymodels for modeling functions, ISLR and ISLR2 for data sets, [discrim](https://discrim.tidymodels.org/) to give us access to discriminant analysis models such as LDA and QDA as well as the Naive Bayes model and [poissonreg](https://poissonreg.tidymodels.org/) for Poisson Regression.
 
-```{r, message=FALSE}
-library(tidymodels)
-library(ISLR) # For the Smarket data set
-library(ISLR2) # For the Bikeshare data set
-library(discrim)
-library(poissonreg)
-```
-
-```{r, echo=FALSE}
-select <- dplyr::select
-```
+## The Stock Market Data
 
 We will be examining the `Smarket` data set for this lab. It contains a number of numeric variables plus a variable called `Direction` which has the two labels `"Up"` and `"Down"`. Before we do on to modeling, let us take a look at the correlation between the variables.
 
 To look at the correlation, we will use the [corrr](https://corrr.tidymodels.org/) package. The `correlate()` function will calculate the correlation matrix between all the variables that it is being fed. We will therefore remove `Direction` as it is not numeric. Then we pass that to `rplot()` to quickly visualize the correlation matrix. I have also changed the `colours` argument to better see what is going on.
 
 ```{r}
-library(corrr)
-cor_Smarket <- Smarket %>%
+cor_Smarket <- 
+  Smarket %>%
   select(-Direction) %>%
   correlate()
 
-rplot(cor_Smarket, colours = c("indianred2", "black", "skyblue1"))
+rplot(cor_Smarket, colors = c("darkgray", "black"))
 ```
 
 And we see that these variables are more or less uncorrelated with each other. The other pair is `Year` and `Volume` that is a little correlated.
@@ -43,7 +31,6 @@ And we see that these variables are more or less uncorrelated with each other. T
 If you want to create heatmap styled correlation chart you can also create it manually.
 
 ```{r}
-library(paletteer)
 cor_Smarket %>%
   stretch() %>%
   ggplot(aes(x, y, fill = r)) +
@@ -64,7 +51,8 @@ ggplot(Smarket, aes(Year, Volume)) +
 Now we will fit a logistic regression model. We will again use the parsnip package, and we will use `logistic_reg()` to create a logistic regression model specification.
 
 ```{r}
-lr_spec <- logistic_reg() %>%
+lr_spec <- 
+  logistic_reg() %>%
   set_engine("glm") %>%
   set_mode("classification")
 ```
@@ -83,7 +71,7 @@ lr_fit <- lr_spec %>%
 lr_fit
 ```
 
-this fit is done using the `glm()` function, and it comes with a very handy `summary()` method as well.
+This fit is done using the `glm()` function, and it comes with a very handy `summary()` method as well.
 
 ```{r}
 lr_fit %>%
@@ -122,12 +110,12 @@ augment(lr_fit, new_data = Smarket) %>%
 
 A good performing model would ideally have high numbers along the diagonal (up-left to down-right) with small numbers on the off-diagonal. We see here that the model isn't great, as it tends to predict `"Down"` as `"Up"` more often than it should.
 
-if you want a more visual representation of the confusion matrix you can pipe the result of `conf_mat()` into `autoplot()` to generate a ggplot2 chart.
+If you want a more visual representation of the confusion matrix you can pipe the result of `conf_mat()` into `autoplot()` to generate a ggplot2 chart.
 
 ```{r}
 augment(lr_fit, new_data = Smarket) %>%
   conf_mat(truth = Direction, estimate = .pred_class) %>%
-  autoplot(type = "heatmap")
+  autoplot()
 ```
 
 We can also calculate various performance metrics. One of the most common metrics is accuracy, which is how often the model predicted correctly as a percentage.
@@ -137,7 +125,7 @@ augment(lr_fit, new_data = Smarket) %>%
   accuracy(truth = Direction, estimate = .pred_class)
 ```
 
-and we see that the accuracy isn't great either which is obvious already looking at the confusion matrix.
+And we see that the accuracy isn't great either which is obvious already looking at the confusion matrix.
 
 We just fit a model and evaluated it on the same data. This doesn't give us that much information about the model performance. Let us instead split up the data, train it on some of it and then evaluate it on the other part of the data. Since we are working with some data that has a time component, it is natural to fit the model using the first year's worth of data and evaluate it on the last year. This would more closely match how such a model would be used in real life.
 
@@ -163,7 +151,7 @@ And we will evaluate on the testing data set.
 
 ```{r}
 augment(lr_fit2, new_data = Smarket_test) %>%
-  conf_mat(truth = Direction, estimate = .pred_class) 
+  conf_mat(truth = Direction, estimate = .pred_class)
 
 augment(lr_fit2, new_data = Smarket_test) %>%
   accuracy(truth = Direction, estimate = .pred_class) 
@@ -181,7 +169,7 @@ lr_fit3 <- lr_spec %>%
     )
 
 augment(lr_fit3, new_data = Smarket_test) %>%
-  conf_mat(truth = Direction, estimate = .pred_class) 
+  conf_mat(truth = Direction, estimate = .pred_class)
 
 augment(lr_fit3, new_data = Smarket_test) %>%
   accuracy(truth = Direction, estimate = .pred_class) 
@@ -335,6 +323,8 @@ augment(knn_fit, new_data = Smarket_test) %>%
 
 It appears that this model is not performing that well.
 
+### Caravan insurance
+
 We will try using a K-nearest neighbors model in an application to caravan insurance data. This data set includes 85 predictors that measure demographic characteristics for 5822 individuals. The response variable is `Purchase`, which indicates whether or not a given individual purchases a caravan insurance policy. In this data set, only 6% of people purchased caravan insurance.
 
 We want to build a predictive model that uses the demographic characteristics to predict whether an individual is going to purchase a caravan insurance. Before we go on, we split the data set into a training data set and testing data set. (This is a not the proper way this should be done. See next chapter for the correct way.)
@@ -477,15 +467,15 @@ pois_fit_coef_mnths <-
   mutate(
     term = stringr::str_replace(term, "mnth_", ""),
     term = forcats::fct_inorder(term)
-  ) 
+  )
 
 pois_fit_coef_mnths %>% 
   ggplot(aes(term, estimate)) +
-  geom_line(group = 1) +
+  geom_line(group = 1, color = "purple", size = 1) +
   geom_point(shape = 21, size = 3, stroke = 1.5, 
              fill = "black", color = "white") +
   labs(title = "Coefficient value from Poission Regression",
-       x = "Month", y = "Coefficient")
+       x = "Month", y = "Coefficient") 
 ```
 
 We can similarly also look at the coefficients corresponding to the `hr` variable. Here the peaks occur at 8:00 AM and 5:00 PM, i.e. during normal office start and end times.
@@ -505,7 +495,7 @@ pois_fit_coef_hr %>%
   geom_point(shape = 21, size = 3, stroke = 1.5, 
              fill = "black", color = "white") +
   labs(title = "Coefficient value from Poission Regression",
-       x = "Month", y = "Coefficient")
+       x = "Month", y = "Coefficient") 
 ```
 
 ## Extra - comparing multiple models
