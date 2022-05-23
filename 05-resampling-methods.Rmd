@@ -1,14 +1,9 @@
 # Resampling Methods
 
-```{r, echo=FALSE}
-set.seed(1234)
-```
-
 This lab will show us how to perform different resampling techniques. Some of these tasks are quite general and useful in many different areas. The bootstrap being such an example. This chapter introduces a lot of new packages. This chapter will bring [rsample](https://www.tidymodels.org/start/resampling/) into view for creating resampled data frames as well as [yardstick](https://yardstick.tidymodels.org/) to calculate performance metrics. Lastly, will we also use [tune](https://tune.tidymodels.org/) to fit out models within said resamples. We also see a use of [dials](https://dials.tidymodels.org/) which are used together with tune to select hyperparameter tuning values.
 
 ```{r, message=FALSE}
-library(tidymodels)
-library(ISLR)
+pacman::p_load(tidyverse, tidymodels, ISLR, boot)
 
 Auto <- tibble(Auto)
 Portfolio <- tibble(Portfolio)
@@ -123,6 +118,17 @@ augment(poly_fit, new_data = Auto_test) %>%
 
 Leave-One-Out Cross-Validation is not integrated into the broader tidymodels framework. For more information read [here](https://www.tmwr.org/resampling.html#leave-one-out-cross-validation).
 
+```{r}
+cv.error <- rep(0,5)
+
+for (i in 1:5) {
+  glm.fit = glm(mpg ~ poly(horsepower , i), data = Auto)
+  cv.error[i] = cv.glm(Auto, glm.fit)$delta[1]
+}
+
+cv.error
+```
+
 ## k-Fold Cross-Validation
 
 Earlier we set `degree = 2` to create a second-degree polynomial regression model. But suppose we want to find the best value of `degree` that yields the "closest" fit. This is known as hyperparameter tuning and it is a case where we can use k-Fold Cross-Validation. To use k-Fold Cross-Validation we will be using the `tune` package, and we need 3 things to get it working:
@@ -134,10 +140,12 @@ Earlier we set `degree = 2` to create a second-degree polynomial regression mode
 we are doing the hyperparameter tuning on just one parameter, namely the `degree` argument in `step_poly()`. Creating a new recipe with `degree = tune()` indicated that we intend for `degree` to be tuned.
 
 ```{r}
-poly_tuned_rec <- recipe(mpg ~ horsepower, data = Auto_train) %>%
+poly_tuned_rec <- 
+  recipe(mpg ~ horsepower, data = Auto_train) %>%
   step_poly(horsepower, degree = tune())
 
-poly_tuned_wf <- workflow() %>%
+poly_tuned_wf <- 
+  workflow() %>%
   add_recipe(poly_tuned_rec) %>%
   add_model(lm_spec)
 ```
@@ -172,10 +180,11 @@ degree_grid <- tibble(degree = seq(1, 10))
 Now that all the necessary objects have been created we can pass them to `tune_grid()` which will fit the models within each fold for each value specified in `degree_grid`.
 
 ```{r}
-tune_res <- tune_grid(
-  object = poly_tuned_wf, 
-  resamples = Auto_folds, 
-  grid = degree_grid
+tune_res <- 
+  tune_grid(
+    object = poly_tuned_wf, 
+    resamples = Auto_folds, 
+    grid = degree_grid
 )
 ```
 
@@ -264,7 +273,8 @@ alpha.fn <- function(split) {
 Now we can use `mutate()` and `map_dbl()` from [dplyr](https://dplyr.tidyverse.org/) and [purrr](https://purrr.tidyverse.org/) respectively to apply `alpha.fn` to each of the bootstraps.
 
 ```{r}
-alpha_res <- Portfolio_boots %>%
+alpha_res <- 
+  Portfolio_boots %>%
   mutate(alpha = map_dbl(splits, alpha.fn))
 
 alpha_res
@@ -286,7 +296,8 @@ boot.fn <- function(split) {
 then we use `mutate()` and `map()` to apply the function to each of the bootstraps.
 
 ```{r}
-boot_res <- Auto_boots %>%
+boot_res <- 
+  Auto_boots %>%
   mutate(models = map(splits, boot.fn))
 ```
 
