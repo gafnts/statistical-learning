@@ -276,7 +276,9 @@ lm_spec <-
   set_engine("lm")
 ```
 
-The preprocessing recipe will closely resemble the recipe we saw in the ridge and lasso sections. The main difference is that we end the recipe with `step_pca()` which will perform principal component analysis on all the predictors, and return the components that explain `threshold` percent of the variance. We have set `threshold = tune()` so we can treat the threshold as a hyperparameter to be tuned. By using workflows and tune together can be tune parameters in the preprocessing as well as parameters in the models.
+The preprocessing recipe will closely resemble the recipe we saw in the ridge and lasso sections. The main difference is that we end the recipe with `step_pca()` which will perform principal component analysis on all the predictors, and return the components that explain `threshold` percent of the variance. We have set `threshold = tune()` so we can treat the threshold as a hyperparameter to be tuned.
+
+By using workflows and tune together can be tune parameters in the preprocessing as well as parameters in the models.
 
 ```{r}
 pca_recipe <- 
@@ -303,10 +305,11 @@ threshold_grid
 And now we fit using `tune_grid()`. This time we will actually perform 100 fits since we need to fit a model for each value of `threshold` within each fold.
 
 ```{r}
-tune_res <- tune_grid(
-  pca_workflow,
-  resamples = Hitters_fold, 
-  grid = threshold_grid
+tune_res <- 
+  tune_grid(
+    pca_workflow,
+    resamples = Hitters_fold, 
+    grid = threshold_grid
 )
 ```
 
