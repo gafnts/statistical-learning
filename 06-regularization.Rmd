@@ -130,7 +130,8 @@ ridge_spec <-
 Now we combine to create a `workflow` object.
 
 ```{r}
-ridge_workflow <- workflow() |> 
+ridge_workflow <- 
+  workflow() |> 
   add_recipe(ridge_recipe) |> 
   add_model(ridge_spec)
 ```
@@ -147,10 +148,11 @@ Using 50 levels for one parameter might seem overkill and in many applications i
 Now we have everything we need and we can fit all the models.
 
 ```{r}
-tune_res <- tune_grid(
-  ridge_workflow,
-  resamples = Hitters_fold, 
-  grid = penalty_grid
+tune_res <- 
+  tune_grid(
+    ridge_workflow,
+    resamples = Hitters_fold, 
+    grid = penalty_grid
 )
 
 tune_res
@@ -215,7 +217,8 @@ lasso_spec <-
   set_mode("regression") |> 
   set_engine("glmnet") 
 
-lasso_workflow <- workflow() |> 
+lasso_workflow <- 
+  workflow() |> 
   add_recipe(lasso_recipe) |> 
   add_model(lasso_spec)
 ```
@@ -229,10 +232,11 @@ penalty_grid <- grid_regular(penalty(range = c(-2, 2)), levels = 50)
 And we can use `tune_grid()` again.
 
 ```{r}
-tune_res <- tune_grid(
-  lasso_workflow,
-  resamples = Hitters_fold, 
-  grid = penalty_grid
+tune_res <- 
+  tune_grid(
+    lasso_workflow,
+    resamples = Hitters_fold, 
+    grid = penalty_grid
 )
 
 autoplot(tune_res)
