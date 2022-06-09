@@ -65,7 +65,7 @@ Once the tree gets more than a couple of nodes it can become hard to read the pr
 ```{r, warning=FALSE}
 class_tree_fit %>%
   extract_fit_engine() %>%
-  rpart.plot()
+  rpart.plot::rpart.plot()
 ```
 
 We can see that the most important variable to predict high sales appears to be shelving location as it forms the first node.
@@ -167,7 +167,7 @@ At last, we can visualize the model, and we see that the better-performing model
 ```{r, warning=FALSE}
 class_tree_final_fit %>%
   extract_fit_engine() %>%
-  rpart.plot()
+  rpart.plot::rpart.plot()
 ```
 
 ## Fitting Regression Trees
@@ -206,7 +206,7 @@ and the `rpart.plot()` function works for the regression decision tree as well
 ```{r, warning=FALSE}
 reg_tree_fit %>%
   extract_fit_engine() %>%
-  rpart.plot()
+  rpart.plot::rpart.plot()
 ```
 
 Notice how the result is a numeric variable instead of a class.
@@ -252,7 +252,7 @@ Visualizing the model reveals a much more complex tree than what we saw in the l
 ```{r, warning=FALSE}
 reg_tree_final_fit %>%
   extract_fit_engine() %>%
-  rpart.plot()
+  rpart.plot::rpart.plot()
 ```
 
 ## Bagging and Random Forests
@@ -290,7 +290,7 @@ augment(bagging_fit, new_data = Boston_test) %>%
 There isn't anything weird going on here so we are happy. Next, let us take a look at the variable importance
 
 ```{r}
-vip(bagging_fit)
+vip::vip(bagging_fit)
 ```
 
 Next, let us take a look at a random forest. By default, `randomForest()` `p / 3` variables when building a random forest of regression trees, and `sqrt(p)` variables when building a random forest of classification trees. Here we use `mtry = 6`.
@@ -328,7 +328,7 @@ it looks fine. No discernible difference between this chart and the one we creat
 The variable importance plot is also quite similar to what we saw for the bagging model which isn't surprising.
 
 ```{r}
-vip(rf_fit)
+vip::vip(rf_fit)
 ```
 
 you would normally want to perform hyperparameter tuning for the random forest model to get the best out of your forest. This exercise is left for the reader.
