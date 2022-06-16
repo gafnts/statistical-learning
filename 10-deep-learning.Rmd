@@ -35,8 +35,70 @@ lm_predict <-
 mae(lm_predict, Salary, .pred)
 ```
 
-#### Generalized linear model
+#### Elastic net regularization
 
 ```{r}
+glm_spec <- 
+  linear_reg(
+    penalty = tune(),
+    mixture = tune()
+    ) |> 
+  set_engine("glmnet")
 
+glm_rec <- 
+  gitters_train |> 
+  recipe('Salary ~ . + 0') |> 
+  step_normalize(all_numeric(), -all_outcomes()) |> 
+  step_dummy(all_nominal())
+
+glm_wf <- 
+  workflow() |> 
+  add_model(glm_spec) |> 
+  add_recipe(glm_rec)
+
+folds <- vfold_cv(gitters_train, v = 5)
+
+grid <- 
+  grid_regular(
+    penalty(), 
+    mixture(), 
+    levels = 100
+  )
+  
+doParallel::registerDoParallel()
+
+metrics <- metric_set(mae, rsq)
+
+glm_grid <- 
+  tune_grid(
+    glm_wf,
+    resamples = folds,
+    grid = grid,
+    metrics = metrics
+)
+
+glm_final <- 
+  finalize_workflow(
+    glm_wf,
+    glm_grid |> select_best('rmse')
+  )
+
+last_fit(
+  glm_final,
+  gitters_split,
+  metrics = metrics
+) |> 
+  collect_metrics()
+```
+
+#### Neural network
+
+```{r}
+x <- model.matrix(Salary ~ . - 1, data = Gitters) |> scale()
+
+modnn <- 
+  keras_model_sequential() |> 
+  layer_dense(units = 50, activation = "relu", input_shape = ncol(x)) |> 
+  layer_dropout(rate = 0.4)|> 
+  layer_dense(units = 1)
 ```
