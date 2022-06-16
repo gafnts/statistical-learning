@@ -1,0 +1,42 @@
+# Deep learning
+
+```{r}
+pacman::p_load(tidyverse, tidymodels, ISLR2, keras)
+```
+
+## A single layer network on the Hitters data
+
+```{r}
+gitters <- Hitters |> as_tibble() |> drop_na()
+```
+
+```{r}
+set.seed(1)
+gitters_split <- initial_split(prop = 2/3, gitters)
+gitters_train <- training(gitters_split)
+gitters_test <- testing(gitters_split)
+```
+
+#### Linear model
+
+```{r}
+lm_fit <- linear_reg() |> fit(Salary ~ ., data = gitters_train)
+lm_fit |> pluck('fit') |> summary()
+```
+
+```{r}
+lm_predict <- 
+  bind_cols(
+    gitters_test |> select(Salary),
+    predict(lm_fit, new_data = gitters_test),
+    predict(lm_fit, new_data = gitters_test, type = 'conf_int')
+  )
+
+mae(lm_predict, Salary, .pred)
+```
+
+#### Generalized linear model
+
+```{r}
+
+```
