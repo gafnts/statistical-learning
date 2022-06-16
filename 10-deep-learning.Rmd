@@ -35,13 +35,13 @@ lm_predict <-
 mae(lm_predict, Salary, .pred)
 ```
 
-#### Elastic net regularization
+#### Lasso regularization
 
 ```{r}
 glm_spec <- 
   linear_reg(
     penalty = tune(),
-    mixture = tune()
+    mixture = 1
     ) |> 
   set_engine("glmnet")
 
@@ -59,10 +59,9 @@ glm_wf <-
 folds <- vfold_cv(gitters_train, v = 5)
 
 grid <- 
-  grid_regular(
+  grid_random(
     penalty(), 
-    mixture(), 
-    levels = 100
+    size = 100
   )
   
 doParallel::registerDoParallel()
@@ -77,10 +76,16 @@ glm_grid <-
     metrics = metrics
 )
 
+glm_grid |> 
+  collect_metrics() |> 
+  ggplot(aes(penalty, mean)) +
+  geom_point() +
+  facet_wrap(vars(.metric), scales = 'free_y')
+
 glm_final <- 
   finalize_workflow(
     glm_wf,
-    glm_grid |> select_best('rmse')
+    glm_grid |> select_best('mae')
   )
 
 last_fit(
@@ -94,11 +99,38 @@ last_fit(
 #### Neural network
 
 ```{r}
-x <- model.matrix(Salary ~ . - 1, data = Gitters) |> scale()
+set.seed(2)
+n <- nrow(gitters)
+ntest <- trunc(n / 3)
+testid <- sample(1:n, ntest)
+x <- model.matrix(Salary ~ . - 1, data = gitters) |> scale()
+y <- gitters$Salary
 
 modnn <- 
   keras_model_sequential() |> 
   layer_dense(units = 50, activation = "relu", input_shape = ncol(x)) |> 
   layer_dropout(rate = 0.4)|> 
   layer_dense(units = 1)
+
+modnn |> 
+  compile(loss = "mse",
+           optimizer = optimizer_rmsprop(),
+          metrics = list("mean_absolute_error")
+          )
+
+history <- 
+  modnn |> 
+  fit(x[-testid, ], y[-testid],
+      epochs = 1500, batch_size = 32, 
+      validation_data = list(x[testid, ], y[testid])
+      )
+```
+
+```{r}
+plot(history)
+```
+
+```{r}
+npred <- predict(modnn, x[testid, ])
+mean(abs(y[testid] - npred))
 ```
