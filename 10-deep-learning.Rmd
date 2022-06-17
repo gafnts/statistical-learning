@@ -282,13 +282,349 @@ summary(model)
 ```
 
 ```{r}
-model %>% 
+model |> 
   compile(loss = "categorical_crossentropy", 
           optimizer = optimizer_rmsprop(), 
           metrics = c("accuracy"))
 
 history <- 
-  model %>% fit(x_train, y_train, epochs = 30, batch_size = 128, validation_split = 0.2)
+  model |> fit(x_train, y_train, epochs = 30, batch_size = 128, validation_split = 0.2)
 
-model %>% predict_classes(x_test) %>% accuracy(g_test)
+model |> predict_classes(x_test) |> accuracy(g_test)
+```
+
+## Using Pretrained CNN Models
+
+We now show how to use a CNN pretrained on the `imagenet` database to classify natural images, and demonstrate how we produced Figure ???. We copied six jpeg images from a digital photo album into the directory `book_images`. (These images are available from the data section of [www.statlearning.com](www.statlearning.com), the ISL book website. Download `book_images.zip`; when clicked it creates the `book_images` directory.) We first read in the images, and convert them into the array format expected by the `keras` software to match the specifications in `imagenet`. Make sure that your working directory in `R` is set to the folder in which the images are stored.
+
+```{r}
+img_dir <- "book_images"
+image_names <- list.files(img_dir)
+num_images <- length(image_names)
+x <- array(dim = c(num_images, 224, 224, 3))
+for (i in 1:num_images) {
+   img_path <- paste(img_dir, image_names[i], sep = "/")
+   img <- image_load(img_path, target_size = c(224, 224))
+   x[i,,, ] <- image_to_array(img)
+}
+x <- imagenet_preprocess_input(x)
+```
+
+We then load the trained network. The model has 50 layers, with a fair bit of complexity.
+
+```{r}
+model <- application_resnet50(weights = "imagenet")
+summary(model)
+```
+
+Finally, we classify our six images, and return the top three class choices in terms of predicted probability for each.
+
+```{r}
+pred6 <- model |> predict(x) |>
+   imagenet_decode_predictions(top = 3)
+names(pred6) <- image_names
+print(pred6)
+```
+
+## IMDb Document Classification
+
+Now we perform document classification (Section ???) on the `IMDB` dataset, which is available as part of the `keras` package. We limit the dictionary size to the 10,000 most frequently-used words and tokens.
+
+```{r}
+max_features <- 10000
+imdb <- dataset_imdb(num_words = max_features)
+c(c(x_train, y_train), c(x_test, y_test)) %<-% imdb
+```
+
+The third line is a shortcut for unpacking the list of lists. Each element of `x_train` is a vector of numbers between 0 and 9999 (the document), referring to the words found in the dictionary. For example, the first training document is the positive review on page 419. The indices of the first 12 words are given below.\
+
+```{r}
+x_train[[1]][1:12]
+```
+
+To see the words, we create a function, `decode_review()`, that provides a simple interface to the dictionary.
+
+```{r}
+word_index <- dataset_imdb_word_index()
+decode_review <- function(text, word_index) {
+   word <- names(word_index)
+   idx <- unlist(word_index, use.names = FALSE)
+   word <- c("<PAD>", "<START>", "<UNK>", "<UNUSED>", word)
+   idx <- c(0:3, idx + 3)
+   words <- word[match(text, idx, 2)]
+   paste(words, collapse = " ")
+}
+decode_review(x_train[[1]][1:12], word_index)
+```
+
+Next we write a function to *one-hot* encode each document in a list of documents, and return a binary matrix in sparse-matrix format.
+
+```{r}
+library(Matrix)
+one_hot <- function(sequences, dimension) {
+   seqlen <- sapply(sequences, length)
+   n <- length(seqlen)
+   rowind <- rep(1:n, seqlen)
+   colind <- unlist(sequences)
+   sparseMatrix(i = rowind, j = colind,
+      dims = c(n, dimension))
+}
+```
+
+To construct the sparse matrix, one supplies just the entries that are nonzero. In the last line we call the function `sparseMatrix()` and supply the row indices corresponding to each document and the column indices corresponding to the words in each document, since we omit the values they are taken to be all ones. Words that appear more than once in any given document still get recorded as a one.
+
+```{r}
+x_train_1h <- one_hot(x_train, 10000)
+x_test_1h <- one_hot(x_test, 10000)
+dim(x_train_1h)
+nnzero(x_train_1h) / (25000 * 10000)
+```
+
+Only 1.3% of the entries are nonzero, so this amounts to considerable savings in memory. We create a validation set of size 2,000, leaving 23,000 for training.
+
+```{r}
+set.seed(3)
+ival <- sample(seq(along = y_train), 2000)
+```
+
+First we fit a lasso logistic regression model using `glmnet()` on the training data, and evaluate its performance on the validation data. Finally, we plot the accuracy, `acclmv`, as a function of the shrinkage parameter, $\lambda$. Similar expressions compute the performance on the test data, and were used to produce the left plot in Figure 10.11.
+
+The code takes advantage of the sparse-matrix format of `x_train_1h`, and runs in about 5 seconds; in the usual dense format it would take about 5 minutes.
+
+```{r}
+library(glmnet)
+fitlm <- glmnet(x_train_1h[-ival, ], y_train[-ival],
+    family = "binomial", standardize = FALSE)
+classlmv <- predict(fitlm, x_train_1h[ival, ]) > 0
+acclmv <- apply(classlmv, 2, accuracy,  y_train[ival] > 0)
+```
+
+We applied the `accuracy()` function that we wrote in Lab 10.9.2 to every column of the prediction matrix `classlmv`, and since this is a logical matrix of `TRUE/FALSE` values, we supply the second argument `truth` as a logical vector as well.
+
+Before making a plot, we adjust the plotting window.
+
+```{r}
+par(mar = c(4, 4, 4, 4), mfrow = c(1, 1))
+plot(-log(fitlm$lambda), acclmv)
+```
+
+Next we fit a fully-connected neural network with two hidden layers, each with 16 units and ReLU activation.
+
+```{r}
+model <- keras_model_sequential() |>
+   layer_dense(units = 16, activation = "relu",
+      input_shape = c(10000)) |>
+   layer_dense(units = 16, activation = "relu") |>
+   layer_dense(units = 1, activation = "sigmoid")
+model |> compile(optimizer = "rmsprop",
+   loss = "binary_crossentropy", metrics = c("accuracy"))
+history <- model |> fit(x_train_1h[-ival, ], y_train[-ival],
+   epochs = 20, batch_size = 512,
+   validation_data = list(x_train_1h[ival, ], y_train[ival]))
+```
+
+The `history` object has a `metrics` component that records both the training and validation accuracy at each epoch. Figure ??? includes test accuracy at each epoch as well. To compute the test accuracy, we rerun the entire sequence above, replacing the last line with
+
+```{r}
+history <- model |> fit(
+    x_train_1h[-ival, ], y_train[-ival], epochs = 20,
+    batch_size = 512, validation_data = list(x_test_1h, y_test)
+    )
+```
+
+## Recurrent Neural Networks
+
+In this lab we fit the models illustrated in Section 10.5.
+
+### Sequential Models for Document Classification
+
+Here we fit a simple LSTM RNN for sentiment analysis with the `IMDB` movie-review data, as discussed in Section 10.5.1. We showed how to input the data in 10.9.5, so we will not repeat that here.
+
+We first calculate the lengths of the documents.
+
+```{r}
+wc <- sapply(x_train, length)
+median(wc)
+sum(wc <= 500) / length(wc)
+```
+
+We see that over 91% of the documents have fewer than 500 words. Our RNN requires all the document sequences to have the same length. We hence restrict the document lengths to the last $L=500$ words, and pad the beginning of the shorter ones with blanks.
+
+```{r}
+maxlen <- 500
+x_train <- pad_sequences(x_train, maxlen = maxlen)
+x_test <- pad_sequences(x_test, maxlen = maxlen)
+dim(x_train)
+dim(x_test)
+x_train[1, 490:500]
+```
+
+The last expression shows the last few words in the first document. At this stage, each of the 500 words in the document is represented using an integer corresponding to the location of that word in the 10,000-word dictionary. The first layer of the RNN is an embedding layer of size 32, which will be learned during training. This layer one-hot encodes each document as a matrix of dimension $500 \times 10,000$, and then maps these $10,000$ dimensions down to $32$.
+
+```{r}
+model <- keras_model_sequential() |>
+   layer_embedding(input_dim = 10000, output_dim = 32) |>
+   layer_lstm(units = 32) |>
+   layer_dense(units = 1, activation = "sigmoid")
+```
+
+The second layer is an LSTM with 32 units, and the output layer is a single sigmoid for the binary classification task.
+
+The rest is now similar to other networks we have fit. We track the test performance as the network is fit, and see that it attains 87% accuracy.
+
+```{r}
+model |> compile(optimizer = "rmsprop",
+    loss = "binary_crossentropy", metrics = c("acc"))
+#history <- model |> fit(x_train, y_train, epochs = 10,
+history <- model |> fit(x_train, y_train, epochs = 3,
+    batch_size = 128, validation_data = list(x_test, y_test))
+plot(history)
+predy <- predict(model, x_test) > 0.5
+mean(abs(y_test == as.numeric(predy)))
+```
+
+### Time Series Prediction
+
+We now show how to fit the models in Section ??? for time series prediction. We first set up the data, and standardize each of the variables.
+
+```{r}
+library(ISLR2)
+xdata <- data.matrix(
+ NYSE[, c("DJ_return", "log_volume","log_volatility")]
+ )
+istrain <- NYSE[, "train"]
+xdata <- scale(xdata)
+```
+
+The variable `istrain` contains a `TRUE` for each year that is in the training set, and a `FALSE` for each year in the test set.
+
+We first write functions to create lagged versions of the three time series. We start with a function that takes as input a data matrix and a lag $L$, and returns a lagged version of the matrix. It simply inserts $L$ rows of `NA` at the top, and truncates the bottom.
+
+```{r}
+lagm <- function(x, k = 1) {
+   n <- nrow(x)
+   pad <- matrix(NA, k, ncol(x))
+   rbind(pad, x[1:(n - k), ])
+}
+```
+
+We now use this function to create a data frame with all the required lags, as well as the response variable.
+
+```{r}
+arframe <- data.frame(log_volume = xdata[, "log_volume"],
+   L1 = lagm(xdata, 1), L2 = lagm(xdata, 2),
+   L3 = lagm(xdata, 3), L4 = lagm(xdata, 4),
+   L5 = lagm(xdata, 5)
+ )
+```
+
+If we look at the first five rows of this frame, we will see some missing values in the lagged variables (due to the construction above). We remove these rows, and adjust `istrain` accordingly.
+
+```{r}
+arframe <- arframe[-(1:5), ]
+istrain <- istrain[-(1:5)]
+```
+
+We now fit the linear AR model to the training data using `lm()`, and predict on the test data.
+
+```{r}
+arfit <- lm(log_volume ~ ., data = arframe[istrain, ])
+arpred <- predict(arfit, arframe[!istrain, ])
+V0 <- var(arframe[!istrain, "log_volume"])
+1 - mean((arpred - arframe[!istrain, "log_volume"])^2) / V0
+```
+
+The last two lines compute the $R^2$ on the test data, as defined in (3.17).
+
+We refit this model, including the factor variable `day_of_week`.
+
+```{r}
+arframed <-
+    data.frame(day = NYSE[-(1:5), "day_of_week"], arframe)
+arfitd <- lm(log_volume ~ ., data = arframed[istrain, ])
+arpredd <- predict(arfitd, arframed[!istrain, ])
+1 - mean((arpredd - arframe[!istrain, "log_volume"])^2) / V0
+```
+
+To fit the RNN, we need to reshape these data, since it expects a sequence of $L=5$ feature vectors $X=\{X_\ell\}_1^L$ for each observation, as in (10.20) on page 428. These are lagged versions of the time series going back $L$ time points.
+
+```{r}
+n <- nrow(arframe)
+xrnn <- data.matrix(arframe[, -1])
+xrnn <- array(xrnn, c(n, 3, 5))
+xrnn <- xrnn[,, 5:1]
+xrnn <- aperm(xrnn, c(1, 3, 2))
+dim(xrnn)
+```
+
+We have done this in four steps. The first simply extracts the $n\times 15$ matrix of lagged versions of the three predictor variables from `arframe`. The second converts this matrix to a $n\times 3\times 5$ array. We can do this by simply changing the dimension attribute, since the new array is filled column wise. The third step reverses the order of lagged variables, so that index $1$ is furthest back in time, and index $5$ closest. The final step rearranges the coordinates of the array (like a partial transpose) into the format that the RNN module in `keras` expects.
+
+Now we are ready to proceed with the RNN, which uses 12 hidden units.
+
+```{r}
+model <- keras_model_sequential() |>
+   layer_simple_rnn(units = 12,
+      input_shape = list(5, 3),
+      dropout = 0.1, recurrent_dropout = 0.1) |>
+   layer_dense(units = 1)
+model |> compile(optimizer = optimizer_rmsprop(),
+    loss = "mse")
+```
+
+We specify two forms of dropout for the units feeding into the hidden layer. The first is for the input sequence feeding into this layer, and the second is for the previous hidden units feeding into the layer. The output layer has a single unit for the response.
+
+We fit the model in a similar fashion to previous networks. We supply the `fit` function with test data as validation data, so that when we monitor its progress and plot the history function we can see the progress on the test data. Of course we should not use this as a basis for early stopping, since then the test performance would be biased.
+
+```{r}
+history <- model |> fit(
+    xrnn[istrain,, ], arframe[istrain, "log_volume"],
+#    batch_size = 64, epochs = 200,
+    batch_size = 64, epochs = 75,
+    validation_data =
+      list(xrnn[!istrain,, ], arframe[!istrain, "log_volume"])
+  )
+kpred <- predict(model, xrnn[!istrain,, ])
+1 - mean((kpred - arframe[!istrain, "log_volume"])^2) / V0
+```
+
+This model takes about one minute to train.
+
+We could replace the `keras_model_sequential()` command above with the following command:
+
+```{r}
+model <- keras_model_sequential() |>
+   layer_flatten(input_shape = c(5, 3)) |>
+   layer_dense(units = 1)
+```
+
+Here, `layer_flatten()` simply takes the input sequence and turns it into a long vector of predictors. This results in a linear AR model. To fit a nonlinear AR model, we could add in a hidden layer.
+
+However, since we already have the matrix of lagged variables from the AR model that we fit earlier using the `lm()` command, we can actually fit a nonlinear AR model without needing to perform flattening. We extract the model matrix `x` from `arframed`, which includes the `day_of_week` variable.
+
+```{r}
+x <- model.matrix(log_volume ~ . - 1, data = arframed)
+colnames(x)
+```
+
+The `-1` in the formula avoids the creation of a column of ones for the intercept. The variable `day\_of\_week` is a five-level factor (there are five trading days), and the `-1` results in five rather than four dummy variables.
+
+The rest of the steps to fit a nonlinear AR model should by now be familiar.
+
+```{r}
+arnnd <- keras_model_sequential() |>
+   layer_dense(units = 32, activation = 'relu',
+      input_shape = ncol(x)) |>
+   layer_dropout(rate = 0.5) |>
+   layer_dense(units = 1)
+arnnd |> compile(loss = "mse",
+    optimizer = optimizer_rmsprop())
+history <- arnnd |> fit(
+#    x[istrain, ], arframe[istrain, "log_volume"], epochs = 100, 
+    x[istrain, ], arframe[istrain, "log_volume"], epochs = 30, 
+    batch_size = 32, validation_data =
+      list(x[!istrain, ], arframe[!istrain, "log_volume"])
+  )
+plot(history)
+npred <- predict(arnnd, x[!istrain, ])
+1 - mean((arframe[!istrain, "log_volume"] - npred)^2) / V0
 ```
