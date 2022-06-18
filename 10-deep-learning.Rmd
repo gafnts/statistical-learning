@@ -193,8 +193,7 @@ plot(history, smooth = FALSE)
 ```
 
 ```{r}
-accuracy <- function(pred, truth) 
-  mean(drop(pred) == drop(truth))
+accuracy <- function(pred, truth) {mean(drop(as.numeric(pred)) == drop(truth))}
 
 modelnn |> predict(x_test) |> accuracy(g_test)
 ```
@@ -298,15 +297,18 @@ model |> predict_classes(x_test) |> accuracy(g_test)
 We now show how to use a CNN pretrained on the `imagenet` database to classify natural images, and demonstrate how we produced Figure ???. We copied six jpeg images from a digital photo album into the directory `book_images`. (These images are available from the data section of [www.statlearning.com](www.statlearning.com), the ISL book website. Download `book_images.zip`; when clicked it creates the `book_images` directory.) We first read in the images, and convert them into the array format expected by the `keras` software to match the specifications in `imagenet`. Make sure that your working directory in `R` is set to the folder in which the images are stored.
 
 ```{r}
-img_dir <- "book_images"
+img_dir <- here::here("datasets", "book_images")
 image_names <- list.files(img_dir)
 num_images <- length(image_names)
+
 x <- array(dim = c(num_images, 224, 224, 3))
+
 for (i in 1:num_images) {
    img_path <- paste(img_dir, image_names[i], sep = "/")
    img <- image_load(img_path, target_size = c(224, 224))
    x[i,,, ] <- image_to_array(img)
 }
+
 x <- imagenet_preprocess_input(x)
 ```
 
@@ -320,15 +322,19 @@ summary(model)
 Finally, we classify our six images, and return the top three class choices in terms of predicted probability for each.
 
 ```{r}
-pred6 <- model |> predict(x) |>
-   imagenet_decode_predictions(top = 3)
+pred6 <- 
+  model |> 
+  predict(x) |>
+  imagenet_decode_predictions(top = 3)
+
 names(pred6) <- image_names
+
 print(pred6)
 ```
 
 ## IMDb Document Classification
 
-Now we perform document classification (Section ???) on the `IMDB` dataset, which is available as part of the `keras` package. We limit the dictionary size to the 10,000 most frequently-used words and tokens.
+Now we perform document classification on the `IMDB` dataset, which is available as part of the `keras` package. We limit the dictionary size to the 10,000 most frequently-used words and tokens.
 
 ```{r}
 max_features <- 10000
@@ -346,6 +352,7 @@ To see the words, we create a function, `decode_review()`, that provides a simpl
 
 ```{r}
 word_index <- dataset_imdb_word_index()
+
 decode_review <- function(text, word_index) {
    word <- names(word_index)
    idx <- unlist(word_index, use.names = FALSE)
@@ -354,6 +361,7 @@ decode_review <- function(text, word_index) {
    words <- word[match(text, idx, 2)]
    paste(words, collapse = " ")
 }
+
 decode_review(x_train[[1]][1:12], word_index)
 ```
 
@@ -411,22 +419,31 @@ plot(-log(fitlm$lambda), acclmv)
 Next we fit a fully-connected neural network with two hidden layers, each with 16 units and ReLU activation.
 
 ```{r}
-model <- keras_model_sequential() |>
+model <- 
+  keras_model_sequential() |>
    layer_dense(units = 16, activation = "relu",
       input_shape = c(10000)) |>
    layer_dense(units = 16, activation = "relu") |>
    layer_dense(units = 1, activation = "sigmoid")
-model |> compile(optimizer = "rmsprop",
-   loss = "binary_crossentropy", metrics = c("accuracy"))
-history <- model |> fit(x_train_1h[-ival, ], y_train[-ival],
-   epochs = 20, batch_size = 512,
-   validation_data = list(x_train_1h[ival, ], y_train[ival]))
+
+model |> 
+  compile(optimizer = "rmsprop", loss = "binary_crossentropy", metrics = c("accuracy"))
+
+history <- 
+  model |> 
+  fit(x_train_1h[-ival, ], 
+      y_train[-ival], 
+      epochs = 20, 
+      batch_size = 512,
+      validation_data = list(x_train_1h[ival, ], y_train[ival]))
 ```
 
 The `history` object has a `metrics` component that records both the training and validation accuracy at each epoch. Figure ??? includes test accuracy at each epoch as well. To compute the test accuracy, we rerun the entire sequence above, replacing the last line with
 
 ```{r}
-history <- model |> fit(
+history <- 
+  model |> 
+  fit(
     x_train_1h[-ival, ], y_train[-ival], epochs = 20,
     batch_size = 512, validation_data = list(x_test_1h, y_test)
     )
@@ -583,6 +600,7 @@ history <- model |> fit(
     validation_data =
       list(xrnn[!istrain,, ], arframe[!istrain, "log_volume"])
   )
+
 kpred <- predict(model, xrnn[!istrain,, ])
 1 - mean((kpred - arframe[!istrain, "log_volume"])^2) / V0
 ```
